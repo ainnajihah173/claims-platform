@@ -4,6 +4,7 @@
 - Infra: `docker compose up -d`
 - Build: `dotnet build`
 - Test: `dotnet test`
+- Dev JWT key (once): `dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api`
 - Run API: `dotnet run --project backend/Claims.Api`
 - Run web: `cd frontend/claims-web && npm start`
 

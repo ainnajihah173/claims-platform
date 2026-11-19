@@ -1,7 +1,10 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using Claims.Api.Controllers;
 using Claims.Api.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +17,31 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("Claims")));
+
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Set Jwt:Key (user-secrets or the Jwt__Key env var), at least 32 characters.");
+if (jwtKey.Length < 32) throw new InvalidOperationException("Jwt:Key must be at least 32 characters (HMAC-SHA256 needs 256 bits).");
+builder.Services.AddAuthentication().AddJwtBearer(o =>
+{
+    o.MapInboundClaims = false; // keep "sub" / "role" as issued
+    o.TokenValidationParameters = new()
+    {
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        NameClaimType = "name",
+        RoleClaimType = "role",
+    };
+});
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("ClaimantOnly", p => p.RequireRole("Claimant"))
+    .AddPolicy("StaffOnly", p => p.RequireRole("Officer", "Manager"))
+    // Deny by default: every endpoint needs a valid token unless it says [AllowAnonymous].
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 var app = builder.Build();
 
@@ -28,12 +56,13 @@ app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
