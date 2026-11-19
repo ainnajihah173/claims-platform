@@ -7,7 +7,8 @@
 - Test: `dotnet test`
 - Dev JWT key (once): `dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api`
 - Run API: `dotnet run --project backend/Claims.Api`
-- Run web: `cd frontend/claims-web && npm start`
+- Run web: `cd frontend/claims-web && npm start` (http://localhost:4200, proxies `/api` to the API on :5249)
+- Test web: `cd frontend/claims-web && npx ng test --watch=false`
 
 ## Rules
 - No MediatR / AutoMapper / repository layer; use EF Core directly

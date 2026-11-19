@@ -1,0 +1,10 @@
+<header>
+  <strong>Claims</strong>
+  @if (auth.user(); as u) {
+    <span>{{ u.name }} ({{ u.role }})</span>
+    <button (click)="logout()">Log out</button>
+  }
+</header>
+<main>
+  <router-outlet />
+</main>
