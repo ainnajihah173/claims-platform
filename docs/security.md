@@ -24,4 +24,6 @@
 
 ## Kafka
 
-Locally Kafka runs PLAINTEXT with no auth (docker compose). In production: SASL/SSL (TLS in transit plus client authentication), plus ACLs so only the claims API can write to `claims.events` and only the projection consumer group can read it. Events already carry no personal data (see decisions.md).
+Locally Kafka runs PLAINTEXT with no auth (docker compose). In production: SASL/SSL (TLS in transit plus client authentication), plus ACLs so only the claims API can write to `claims.events` and only the projection consumer group can read it. Events carry no directly identifying data, only opaque ids, statuses and amounts (see decisions.md). The ids can still be linked to people, so the ACLs matter.
+
+Durability: locally the topic is auto-created with replication factor 1, so `Acks = All` waits for one copy. In production, create `claims.events` explicitly with replication factor 3 and `min.insync.replicas=2`, so an acked event survives losing one broker.

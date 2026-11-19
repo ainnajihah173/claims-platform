@@ -2,6 +2,7 @@
 
 ## Commands
 - Infra: `docker compose up -d`
+- Reset DB + Kafka (after any schema or event change; no migrations): `docker compose down -v && docker compose up -d`
 - Build: `dotnet build`
 - Test: `dotnet test`
 - Dev JWT key (once): `dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api`

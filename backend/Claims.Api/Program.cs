@@ -18,7 +18,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("Claims")));
-// API tests leave this empty: they run without Kafka and must not write to the dev topic.
+// Set in appsettings.json so every environment publishes by default. Only the API tests blank it:
+// they run without Kafka and must not write to the dev topic.
 if (!string.IsNullOrEmpty(builder.Configuration["Kafka:BootstrapServers"]))
 {
     builder.Services.AddHostedService<OutboxPublisher>();

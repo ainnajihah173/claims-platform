@@ -21,7 +21,8 @@ public class ProjectionConsumer(IServiceScopeFactory scopes, IConfiguration conf
             GroupId = "claims-projection",
             EnableAutoCommit = false, // commit only after the DB commit
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            AllowAutoCreateTopics = true, // first start: don't wait for the publisher to create the topic
+            // Subscribing creates the topic if missing. The very first Consume can still report it missing once; the retry below recovers.
+            AllowAutoCreateTopics = true,
         }).Build();
         consumer.Subscribe(OutboxPublisher.Topic);
         try
@@ -38,9 +39,13 @@ public class ProjectionConsumer(IServiceScopeFactory scopes, IConfiguration conf
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
-                    // shortcut: no retry limit/DLQ, a message that always fails blocks its partition; add a retry topic + DLQ before production.
+                    // shortcut: no retry limit/DLQ, a message that always fails (unknown claim, bad payload, exposure total
+                    // past numeric(18,2)) blocks its partition; add a retry topic + DLQ before production.
                     log.LogError(e, "Projection failed at {Offset}; trying again in 5 s", result?.TopicPartitionOffset);
-                    if (result is not null) consumer.Seek(result.TopicPartitionOffset);
+                    // Seek throws if the partition was revoked; uncaught here it would stop the whole API (host default).
+                    // Not committed either way, so the message is read again.
+                    try { if (result is not null) consumer.Seek(result.TopicPartitionOffset); }
+                    catch (KafkaException se) { log.LogWarning(se, "Seek back failed; the next owner of the partition reads it again"); }
                     await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 }
             }

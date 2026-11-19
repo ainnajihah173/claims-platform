@@ -61,6 +61,10 @@ public class OutboxPublisher(IServiceScopeFactory scopes, IConfiguration config,
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         // shortcut: one publisher per database; with several API instances, claim rows with FOR UPDATE SKIP LOCKED.
+        // shortcut: no index on PublishedAt and published rows (and processed_events) are kept forever; add a partial
+        // index + a cleanup job once the table reaches tens of thousands of rows.
+        // shortcut: order follows the app clock (OccurredAt), so a clock step back can swap one claim's events;
+        // order by an insertion sequence (bigserial) before running more than one API instance.
         var rows = await db.Outbox.Where(o => o.PublishedAt == null)
             .OrderBy(o => o.OccurredAt).ThenBy(o => o.Id).Take(100).ToListAsync(ct);
         foreach (var row in rows)
