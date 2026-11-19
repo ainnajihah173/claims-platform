@@ -30,6 +30,14 @@ public record TimelineItem(ClaimEventType EventType, string? OldValue, string? N
 
 public record NotificationItem(Guid Id, Guid ClaimId, string Message, DateTimeOffset CreatedAt);
 
+public record ExposureRow(Market Market, string Currency, ClaimType Type, int OpenCount, decimal TotalReserve, DateTimeOffset AsOf);
+
+public record Workload(DateTimeOffset AsOf, int Unassigned, List<OfficerWorkload> Officers);
+
+public record OfficerWorkload(
+    Guid OfficerId, string Name, int Open, int AwaitingInfo, int Overdue, int? OldestOpenDays,
+    int ClosedLast30Days, double? AvgDaysToCloseLast30Days);
+
 // Money fits numeric(18,2): not negative, at most 2 decimals, at most 16 digits before the point.
 public sealed class MoneyAttribute : ValidationAttribute
 {

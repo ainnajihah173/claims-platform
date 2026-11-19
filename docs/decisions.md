@@ -71,4 +71,12 @@ Money is a `decimal` in the claim's currency. A claim never mixes currencies.
 
 ## Dashboards
 
+Both endpoints are staff only (`StaffOnly`); a claimant gets 403.
+
+**Exposure = event-fed read model.** `GET /api/dashboard/exposure` reads `exposure_summary` as it stands: one row per market + currency + type with the open count, total reserve and `asOf` (when that row last changed). Totals are never added across currencies. The consumer builds it from events (see Events), so it lags the claims by about a second, and on a just-seeded database it is empty until the consumer catches up. Reading a ready-made table keeps the query cheap however many claims there are, and the totals never need a scan of every open claim.
+
+**Workload = live query.** `GET /api/dashboard/workload` queries `claims` on each call. Per staff user (officers and managers, assumption 6) it returns: open, AwaitingInfo, overdue (same `Claim.IsOverdue` rule and config as the claims list), oldest open age in days, the number closed in the last 30 days and their average days from submit to close. It also returns the unassigned count (Submitted, no officer, the same filter as the unassigned queue). It is a live query because officers act on it ("who has room for this claim?") and it must match the queue they see. A lagging read model could show a claim as unassigned after someone picked it up. It is cheap: it reads only assigned open claims and those closed in the last 30 days. Shortcut: they are loaded into memory so the overdue rule is reused, not rewritten in SQL. Move the counts to a SQL `GROUP BY` once there are tens of thousands of open claims.
+
+**UI polls and shows "as of".** No push (SignalR/websockets). The dashboard screen re-fetches both endpoints on a timer and shows each `asOf`: workload's is the server time of the query, exposure's is per row. A stale exposure row is then visible instead of hidden.
+
 ## Frontend
