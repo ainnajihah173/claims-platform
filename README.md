@@ -26,6 +26,7 @@ To run the API from source instead (to debug it), set the key once with
 
 The API creates and seeds the database on first start. Tests: `dotnet test` (Docker must be running, the API tests start their own Postgres containers, and the Kafka test its own Kafka).
 On the very first start the consumer logs one "unknown topic" error until the publisher creates `claims.events`. It recovers on its own.
+The API container also logs one `libgssapi_krb5.so.2` error at start: Npgsql looks for Kerberos, which isn't used here. Harmless.
 Reset everything (after a schema or event change, there are no migrations): `docker compose down -v && docker compose up -d --build`.
 
 ## Seeded users
@@ -48,10 +49,10 @@ Login is per browser tab, so keep Aisha in one tab and Chen in another. Notifica
 **Calling the API in Scalar:** open `POST /api/auth/dev-login`, send `{ "userId": "<id from the table>" }`, copy `token`. On each later call add the header `Authorization: Bearer <token>`.
 
 1. **Submit** (app, tab 2, log in as Aisha): **Submit a claim** → Motor, Malaysia, policy `MY-MOT-1099`, "Bumper dented while parked" → **Submit claim**. The new claim opens as Submitted.
-2. **Pick up** (app, tab 1, log in as Chen): the new claim is in *Unassigned queue*. Open it → **Pick up**. Status: InReview.
-3. **Request info** (Chen): type "Please send a photo of the bumper." → **Request info**. Status: AwaitingInfo.
-4. **Answer** (tab 2, Aisha, refresh): open the claim under *My claims* → type an answer → **Send answer**. Status: InReview.
-5. **Set reserve** (Chen, refresh the page): amount `1000` → **Set reserve**.
+2. **Pick up** (app, tab 1, log in as Chen): the new claim is under the **To pick up** card. Open it → **Pick up this claim**. Status: In review.
+3. **Request info** (Chen): under **Next step**, type "Please send a photo of the bumper." → **Request info**. Status: Awaiting info.
+4. **Answer** (tab 2, Aisha, refresh): open the claim under the **Needs your answer** card → type an answer → **Send answer**. Status: In review.
+5. **Set reserve** (Chen, refresh the page): **Amount** `1000` → **Set reserve**.
 6. **Settle** (Chen): try `1200` → **Settle** is refused (more than the reserve). Then `800` → **Settle**. Status: Settled, and the timeline shows every step.
 7. **Exposure** (Chen): **Dashboard** (it refreshes every 15 s). Malaysia / Motor went from 2 open / 1,500.00 to 3 / 1,500.00 on submit, 3 / 2,500.00 on reserve, and back to 2 / 1,500.00 on settle (the 1,000 reserve is released, not the 800 paid).
 8. **Notifications** (Scalar, as Aisha): `GET /api/notifications` shows the info request and "settled for 800.00 MYR".
@@ -96,7 +97,7 @@ One service (modular monolith), one database. Details in `docs/decisions.md`.
 - No test for duplicate delivery: `KafkaTests` proves outbox → Kafka → exposure + notification end to end (Testcontainers), but "duplicate skipped" was only checked by hand (all 27 events re-sent, totals unchanged).
 
 ## Time spent
-About 3 hours, against a 3-hour target. From the commit log:
+About 3¼ hours (first prompt 21:55, done about 01:15): the 3-hour core, then the extras and a frontend redesign, inside my own 4-hour budget (the brief's target is 2–3 h, hard cap 5 h). From the commit log:
 
 | Step | Done at | Min |
 |---|---|---|
@@ -107,6 +108,8 @@ About 3 hours, against a 3-hour target. From the commit log:
 | Kafka events, review fixes | 00:10 | 25 |
 | Dashboards | 00:22 | 12 |
 | Angular | 00:34 | 12 |
-| README, fresh-clone test, journal | | ~15 |
+| README, fresh-clone test, journal | 00:42 | 8 |
+| Extras (submit form, dashboard screen, Dockerised API, Kafka test, rate limit) and the frontend redesign, side by side | 01:02 | ~20 |
+| README update, second fresh-clone test | 01:15 | ~10 |
 
 **Why backend first.** The rules that matter (status flow, who may act, reserve and settle limits, ownership, no lost events) live in the backend and can be proven by tests. The UI is a thin layer over the API, and if it had run short the whole flow could still be shown in Scalar. Building the UI first would have meant building it against an API that didn't exist yet.
