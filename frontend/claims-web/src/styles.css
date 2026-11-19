@@ -59,7 +59,7 @@ button, input, textarea { font: inherit; color: inherit; }
 .account { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .account-text { display: flex; flex-direction: column; line-height: 16px; text-align: right; min-width: 0; }
 .account-text span:last-child { font-size: var(--fs-small); color: var(--muted); }
-main { padding: 28px 0 64px; }
+main.column { padding-block: 28px 64px; } /* main.column: `.column` alone would reset this to 0 */
 
 /* People: an initial on a pale tint of their own hue (--h set inline). */
 .avatar {
@@ -136,7 +136,7 @@ a.btn { text-decoration: none; }
 
 @media (max-width: 640px) {
   :root { --pad: 16px; }
-  main { padding: 20px 0 48px; }
+  main.column { padding-block: 20px 48px; }
   .account-text { display: none; }
   .title-row h1 { font-size: 22px; line-height: 28px; }
   .btn { height: 44px; }
