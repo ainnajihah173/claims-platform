@@ -37,3 +37,21 @@ services:
       timeout: 10s
       retries: 10
       start_period: 15s
+
+  # To run the API from source instead: docker compose up -d postgres kafka, then dotnet run.
+  api:
+    build: backend/Claims.Api
+    ports:
+      - "5249:8080" # same port as dotnet run, so the web proxy works with either
+    environment:
+      # Development = dev login + Scalar on, like launchSettings.json. Local only.
+      ASPNETCORE_ENVIRONMENT: Development
+      DevLogin__Enabled: "true"
+      Jwt__Key: ${JWT_KEY} # from .env; the API refuses to start without it
+      ConnectionStrings__Claims: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:19092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy

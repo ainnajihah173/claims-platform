@@ -42,3 +42,29 @@ export interface DevLoginResponse {
   token: string;
   expiresAt: string;
 }
+
+export interface ExposureRow {
+  market: Market;
+  currency: string;
+  type: ClaimType;
+  openCount: number;
+  totalReserve: number;
+  asOf: string;
+}
+
+export interface OfficerWorkload {
+  officerId: string;
+  name: string;
+  open: number;
+  awaitingInfo: number;
+  overdue: number;
+  oldestOpenDays: number | null;
+  closedLast30Days: number;
+  avgDaysToCloseLast30Days: number | null;
+}
+
+export interface Workload {
+  asOf: string;
+  unassigned: number;
+  officers: OfficerWorkload[];
+}

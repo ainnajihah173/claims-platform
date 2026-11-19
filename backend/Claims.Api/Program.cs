@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Claims.Api.Controllers;
 using Claims.Api.Data;
 using Claims.Api.Events;
@@ -50,6 +51,14 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("StaffOnly", p => p.RequireRole("Officer", "Manager"))
     // Deny by default: every endpoint needs a valid token unless it says [AllowAnonymous].
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+// shortcut: in-memory, per instance; move to the gateway (shared counter) once there is more than one API instance.
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("submit", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.User.FindFirst("sub")?.Value ?? "", // ClaimantOnly runs first, so there is always a user
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+});
 
 var app = builder.Build();
 
@@ -72,6 +81,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter(); // after auth: partitions by the user's id
 
 app.MapControllers();
 

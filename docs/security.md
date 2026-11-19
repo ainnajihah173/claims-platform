@@ -8,7 +8,7 @@
 | Changing data you shouldn't | DTOs + domain rules + version check | Same |
 | Denying an action | Append-only history | Tamper-evident audit store |
 | Seeing others' data | Ownership check, 404; staff see all markets and teams (MVP) | Filter staff by `team` and market, field-level encryption, data residency per market |
-| Flooding the API | — | Rate limit / WAF at gateway |
+| Flooding the API | Submit limited to 10 per claimant per minute (in memory, per instance) | Rate limit / WAF at gateway |
 | Gaining staff powers | Role policies, deny by default | Approval limits by amount |
 
 ## How it works in the MVP

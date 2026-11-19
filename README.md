@@ -7,27 +7,26 @@ ASP.NET Core API + Postgres, events through Kafka (outbox → idempotent consume
 ## How to run
 Needs: Docker, .NET 10 SDK, Node 22.22+ (or 24.15+ / 26+).
 
-Once, after cloning:
-```bash
-cp .env.example .env
-dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api
-```
+Once, after cloning: `cp .env.example .env`, then set `JWT_KEY` in `.env` (random, 32+ chars).
 
-Then, from the repo root, each in its own terminal:
+Then, from the repo root:
 ```bash
-docker compose up -d
-dotnet run --project backend/Claims.Api
+docker compose up -d --build          # Postgres, Kafka and the API
 cd frontend/claims-web && npm install && npm start
 ```
+
+To run the API from source instead (to debug it), set the key once with
+`dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api`, then
+`docker compose up -d postgres kafka` and `dotnet run --project backend/Claims.Api`. Both use port 5249, so stop the container first (`docker compose stop api`).
 
 | What | URL |
 |---|---|
 | App | http://localhost:4200 |
 | API docs (Scalar) | http://localhost:5249/scalar |
 
-The API creates and seeds the database on first start. Tests: `dotnet test` (Docker must be running, the API tests start their own Postgres containers).
+The API creates and seeds the database on first start. Tests: `dotnet test` (Docker must be running, the API tests start their own Postgres containers, and the Kafka test its own Kafka).
 On the very first start the consumer logs one "unknown topic" error until the publisher creates `claims.events`. It recovers on its own.
-Reset everything (after a schema or event change, there are no migrations): `docker compose down -v && docker compose up -d`.
+Reset everything (after a schema or event change, there are no migrations): `docker compose down -v && docker compose up -d --build`.
 
 ## Seeded users
 Dev login only: pick a user, no password. The API still issues and checks a real signed JWT.
@@ -44,22 +43,20 @@ Dev login only: pick a user, no password. The API still issues and checks a real
 Eight seeded claims cover every status, three of them overdue.
 
 ## Demo script
-The UI has no submit form or dashboard screen yet, so those three calls go through Scalar.
-Login is per browser tab, so keep Aisha in one tab and Chen in another.
+Login is per browser tab, so keep Aisha in one tab and Chen in another. Notifications have no screen yet, so step 8 goes through Scalar.
 
 **Calling the API in Scalar:** open `POST /api/auth/dev-login`, send `{ "userId": "<id from the table>" }`, copy `token`. On each later call add the header `Authorization: Bearer <token>`.
 
-1. **Submit** (Scalar, as Aisha): `POST /api/claims` with
-   `{ "type": "Motor", "market": "MY", "policyNumber": "MY-MOT-1099", "description": "Bumper dented while parked" }` → 201.
+1. **Submit** (app, tab 2, log in as Aisha): **Submit a claim** → Motor, Malaysia, policy `MY-MOT-1099`, "Bumper dented while parked" → **Submit claim**. The new claim opens as Submitted.
 2. **Pick up** (app, tab 1, log in as Chen): the new claim is in *Unassigned queue*. Open it → **Pick up**. Status: InReview.
 3. **Request info** (Chen): type "Please send a photo of the bumper." → **Request info**. Status: AwaitingInfo.
-4. **Answer** (app, tab 2, log in as Aisha): open the claim under *My claims* → type an answer → **Send answer**. Status: InReview.
+4. **Answer** (tab 2, Aisha, refresh): open the claim under *My claims* → type an answer → **Send answer**. Status: InReview.
 5. **Set reserve** (Chen, refresh the page): amount `1000` → **Set reserve**.
 6. **Settle** (Chen): try `1200` → **Settle** is refused (more than the reserve). Then `800` → **Settle**. Status: Settled, and the timeline shows every step.
-7. **Exposure** (Scalar, as Chen): `GET /api/dashboard/exposure`. MY / MYR / Motor went from 2 open / 1,500.00 to 3 / 1,500.00 on submit, 3 / 2,500.00 on reserve, and back to 2 / 1,500.00 on settle (the 1,000 reserve is released, not the 800 paid).
+7. **Exposure** (Chen): **Dashboard** (it refreshes every 15 s). Malaysia / Motor went from 2 open / 1,500.00 to 3 / 1,500.00 on submit, 3 / 2,500.00 on reserve, and back to 2 / 1,500.00 on settle (the 1,000 reserve is released, not the 800 paid).
 8. **Notifications** (Scalar, as Aisha): `GET /api/notifications` shows the info request and "settled for 800.00 MYR".
 
-Also worth a look: `GET /api/dashboard/workload` as Chen or Farah; as Aisha, any dashboard call → 403 and another claimant's claim → 404.
+Also worth a look: the Workload table on the Dashboard as Chen or Farah; as Aisha, any dashboard call → 403 and another claimant's claim → 404; an 11th claim from one claimant within a minute → 429.
 
 ## Architecture
 ```
@@ -86,17 +83,17 @@ One service (modular monolith), one database. Details in `docs/decisions.md`.
 - [AI_JOURNAL.md](AI_JOURNAL.md): every prompt, what the AI gave, what I kept or changed and why
 
 ## Cut / next
-- Claimant submit form and dashboard screen in the UI (the API endpoints exist, use Scalar).
+- Notifications screen in the UI (the endpoint exists, use Scalar).
 - Exposure trend over time (today only the current totals).
 - Currency conversion for a group-wide total (needs FX rates).
 - Real OIDC (Entra ID / Keycloak) instead of dev login.
-- Rate limiting at the gateway.
+- Rate limiting at the gateway: today only `POST /api/claims` is limited (10 per claimant per minute), in memory per API instance.
 - Retry limit + dead-letter topic for the consumer: today a message that always fails blocks its partition.
 - Attachments (photos, quotes).
-- Dockerised API, so one `docker compose up` starts everything.
+- The web app in compose too: compose starts Postgres, Kafka and the API, the web app still runs with `npm start`.
 - Pause the overdue clock while a claim is AwaitingInfo.
 - Reassign a claim to another officer: today only the assigned officer can act, so a claim stalls if they leave.
-- No integration test for outbox → Kafka → projection: the "saved with the claim" and "duplicate skipped" behaviour was checked by hand (all 27 events re-sent, totals unchanged). Next: a Testcontainers Kafka test.
+- No test for duplicate delivery: `KafkaTests` proves outbox → Kafka → exposure + notification end to end (Testcontainers), but "duplicate skipped" was only checked by hand (all 27 events re-sent, totals unchanged).
 
 ## Time spent
 About 3 hours, against a 3-hour target. From the commit log:

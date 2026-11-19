@@ -19,6 +19,7 @@ export interface Session {
   id: string;
   name: string;
   role: Role;
+  team?: string; // staff only
   exp: number; // seconds since epoch, from the token
 }
 
@@ -53,7 +54,7 @@ export class Auth {
 // The server decides what a token allows; the UI only reads sub/name/role/exp to choose what to show.
 function toSession(token: string): Session {
   const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-  return { token, id: p.sub, name: p.name, role: p.role, exp: p.exp };
+  return { token, id: p.sub, name: p.name, role: p.role, team: p.team, exp: p.exp };
 }
 
 function restore(): Session | null {

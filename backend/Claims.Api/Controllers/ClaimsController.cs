@@ -2,6 +2,7 @@ using Claims.Api.Data;
 using Claims.Api.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Claims.Api.Controllers;
@@ -10,7 +11,7 @@ namespace Claims.Api.Controllers;
 [Route("api/claims")]
 public class ClaimsController(AppDbContext db, IConfiguration config) : ControllerBase
 {
-    [HttpPost, Authorize("ClaimantOnly")]
+    [HttpPost, Authorize("ClaimantOnly"), EnableRateLimiting("submit")]
     public async Task<ActionResult<ClaimDetail>> Submit(SubmitClaimRequest r)
     {
         var claim = Claim.Submit(this.CurrentUserId(), r.Type!.Value, r.Market!.Value, r.PolicyNumber, r.Description,

@@ -1,8 +1,9 @@
 # Claims Platform
 
 ## Commands
-- Infra: `docker compose up -d`
-- Reset DB + Kafka (after any schema or event change; no migrations): `docker compose down -v && docker compose up -d`
+- Infra only (to `dotnet run` the API): `docker compose up -d postgres kafka`
+- Everything incl. the API in Docker (needs `JWT_KEY` in .env; port 5249, so not with `dotnet run`): `docker compose up -d --build`
+- Reset DB + Kafka (after any schema or event change; no migrations): `docker compose down -v && docker compose up -d postgres kafka`
 - Build: `dotnet build`
 - Test: `dotnet test`
 - Dev JWT key (once): `dotnet user-secrets set Jwt:Key "<random, 32+ chars>" --project backend/Claims.Api`

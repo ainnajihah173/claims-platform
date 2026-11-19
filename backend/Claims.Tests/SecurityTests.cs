@@ -12,22 +12,26 @@ using Testcontainers.PostgreSql;
 namespace Claims.Tests;
 
 // One Postgres container and one API host for the class; each test makes its own claim, so order doesn't matter.
-public sealed class ApiFixture : IAsyncLifetime
+public class ApiFixture : IAsyncLifetime
 {
+    // Blank = no Kafka: these tests must not write to the dev topic. KafkaFixture starts a real broker.
+    protected virtual Task<string> KafkaBootstrap() => Task.FromResult("");
+
     readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:17").Build();
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
         await _db.StartAsync();
+        var kafka = await KafkaBootstrap();
         App = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b
             .UseSetting("ConnectionStrings:Claims", _db.GetConnectionString())
             .UseSetting("Jwt:Key", Key)
             .UseSetting("DevLogin:Enabled", "true")
-            .UseSetting("Kafka:BootstrapServers", ""));
+            .UseSetting("Kafka:BootstrapServers", kafka));
     }
 
-    public async Task DisposeAsync()
+    public virtual async Task DisposeAsync()
     {
         await App.DisposeAsync();
         await _db.DisposeAsync();
@@ -116,6 +120,19 @@ public class SecurityTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(
             new[] { HttpStatusCode.NoContent, HttpStatusCode.Conflict },
             results.Select(r => r.StatusCode).Order());
+    }
+
+    [Fact]
+    public async Task Submit_is_rate_limited_per_claimant()
+    {
+        var ben = await api.LoginAs(Seed.Ben); // the other tests submit as Aisha, so Ben's window is empty
+        for (var i = 0; i < 10; i++) await api.SubmitClaim(ben);
+
+        var res = await ben.PostAsJsonAsync("/api/claims",
+            new { type = "Motor", market = "AU", policyNumber = "AU-MOT-9999", description = "One too many" });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, res.StatusCode);
+        await api.SubmitClaim(await api.LoginAs(Seed.Aisha)); // another claimant is not blocked
     }
 
     [Fact]

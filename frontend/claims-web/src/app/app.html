@@ -1,10 +1,28 @@
-<header>
-  <strong>Claims</strong>
-  @if (auth.user(); as u) {
-    <span>{{ u.name }} ({{ u.role }})</span>
-    <button (click)="logout()">Log out</button>
-  }
+<header class="topbar" [class.scrolled]="scrolled()">
+  <div class="column">
+    <a class="brand" [routerLink]="auth.user() ? '/claims' : '/'">
+      <!-- The mark: a claim file whose last ledger line is the current step, in the one hue. -->
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 2.5h9.5L19 7v14.5H5z" fill="#141414" />
+        <path d="M14.5 2.5V7H19" fill="#3a3a3a" />
+        <rect x="8" y="10" width="8" height="1.6" rx=".8" fill="#fff" />
+        <rect x="8" y="13.4" width="6" height="1.6" rx=".8" fill="#fff" />
+        <rect x="8" y="16.8" width="4" height="1.6" rx=".8" fill="#5b9bf0" />
+      </svg>
+      Claims
+    </a>
+    @if (auth.user(); as u) {
+      <div class="account">
+        <div class="account-text">
+          <span>{{ u.name }}</span>
+          <span>{{ u.role }}{{ u.team ? ' · ' + u.team : '' }}</span>
+        </div>
+        <span class="avatar" [style.--h]="hue(u.id)" aria-hidden="true">{{ initial(u.id) }}</span>
+        <button class="btn btn-ghost" (click)="logout()">Log out</button>
+      </div>
+    }
+  </div>
 </header>
-<main>
+<main class="column">
   <router-outlet />
 </main>
