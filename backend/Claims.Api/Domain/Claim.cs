@@ -77,6 +77,7 @@ public class Claim
         RequireAssignedOfficer(officerId);
         Require(Status is ClaimStatus.InReview or ClaimStatus.AwaitingInfo, "Reserve can only change on an open claim in review.");
         Require(amount >= 0, "Reserve cannot be negative.");
+        RequireCents(amount);
         var old = Reserve;
         Reserve = amount;
         Record(ClaimEventType.ReserveSet, officerId, now, Status, Format(old), Format(amount), null, old);
@@ -87,6 +88,7 @@ public class Claim
         RequireAssignedOfficer(officerId);
         Require(Status == ClaimStatus.InReview, "Only a claim in review can be settled.");
         Require(amount > 0, "Settlement amount must be greater than zero.");
+        RequireCents(amount);
         // A higher payout needs a recorded reserve increase first, so exposure is never understated.
         Require(amount <= Reserve, "Settlement cannot exceed the reserve. Raise the reserve first.");
         SettledAmount = amount;
@@ -97,7 +99,8 @@ public class Claim
     public void Reject(Guid officerId, string reason, DateTimeOffset now)
     {
         RequireAssignedOfficer(officerId);
-        Require(Status == ClaimStatus.InReview, "Only a claim in review can be rejected.");
+        // AwaitingInfo allowed too: a claimant who never answers must not keep the claim open forever.
+        Require(Status is ClaimStatus.InReview or ClaimStatus.AwaitingInfo, "Only an open claim in review can be rejected.");
         RequireText(reason, "Reason");
         ClosedAt = now;
         ChangeStatus(ClaimEventType.Rejected, officerId, ClaimStatus.Rejected, reason, now);
@@ -131,6 +134,10 @@ public class Claim
 
     static void RequireText(string? text, string field) =>
         Require(!string.IsNullOrWhiteSpace(text), $"{field} is required.");
+
+    // Money is stored as numeric(18,2); refuse values the database would round.
+    static void RequireCents(decimal amount) =>
+        Require(decimal.Round(amount, 2) == amount, "Amount can have at most 2 decimal places.");
 
     static void Require(bool ok, string message)
     {

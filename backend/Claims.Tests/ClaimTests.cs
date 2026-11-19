@@ -74,7 +74,7 @@ public class ClaimTests
     [InlineData(ClaimStatus.AwaitingInfo, Act.ProvideInfo, ClaimStatus.InReview)]
     [InlineData(ClaimStatus.AwaitingInfo, Act.SetReserve, ClaimStatus.AwaitingInfo)]
     [InlineData(ClaimStatus.AwaitingInfo, Act.Settle, null)]
-    [InlineData(ClaimStatus.AwaitingInfo, Act.Reject, null)]
+    [InlineData(ClaimStatus.AwaitingInfo, Act.Reject, ClaimStatus.Rejected)]
     [InlineData(ClaimStatus.Settled, Act.Assign, null)]
     [InlineData(ClaimStatus.Settled, Act.RequestInfo, null)]
     [InlineData(ClaimStatus.Settled, Act.ProvideInfo, null)]
@@ -111,6 +111,7 @@ public class ClaimTests
     [InlineData(ClaimStatus.InReview, Act.Settle)]
     [InlineData(ClaimStatus.InReview, Act.Reject)]
     [InlineData(ClaimStatus.AwaitingInfo, Act.SetReserve)]
+    [InlineData(ClaimStatus.AwaitingInfo, Act.Reject)]
     public void Only_assigned_officer_can_act(ClaimStatus from, Act act)
     {
         var c = ClaimIn(from);
@@ -165,6 +166,19 @@ public class ClaimTests
         Assert.Equal(ClaimStatus.Settled, c.Status);
     }
 
+    // Money is stored as numeric(18,2); more decimals would be rounded silently.
+    [Fact]
+    public void Amounts_have_at_most_two_decimals()
+    {
+        var c = ClaimIn(ClaimStatus.InReview);
+        AssertRefused(c, () => c.SetReserve(Officer, 1000.005m, T1));
+        AssertRefused(c, () => c.Settle(Officer, 500.001m, T1));
+
+        c.SetReserve(Officer, 1000.500m, T1); // trailing zero is still 2 decimals
+        c.Settle(Officer, 999.99m, T1);
+        Assert.Equal(999.99m, c.SettledAmount);
+    }
+
     [Theory]
     [InlineData(Act.RequestInfo, "")]
     [InlineData(Act.RequestInfo, "   ")]
@@ -211,6 +225,7 @@ public class ClaimTests
     [InlineData(ClaimStatus.InReview, Act.SetReserve, ClaimEventType.ReserveSet, "1000", "1200", null)]
     [InlineData(ClaimStatus.InReview, Act.Settle, ClaimEventType.Settled, "InReview", "Settled", "800 AUD")]
     [InlineData(ClaimStatus.InReview, Act.Reject, ClaimEventType.Rejected, "InReview", "Rejected", "Not covered")]
+    [InlineData(ClaimStatus.AwaitingInfo, Act.Reject, ClaimEventType.Rejected, "AwaitingInfo", "Rejected", "Not covered")]
     public void Action_adds_history_and_domain_event(
         ClaimStatus from, Act act, ClaimEventType type, string oldValue, string newValue, string? note)
     {
