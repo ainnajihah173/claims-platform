@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Claims.Api.Controllers;
 using Claims.Api.Data;
+using Claims.Api.Events;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -17,6 +18,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("Claims")));
+// API tests leave this empty: they run without Kafka and must not write to the dev topic.
+if (!string.IsNullOrEmpty(builder.Configuration["Kafka:BootstrapServers"]))
+{
+    builder.Services.AddHostedService<OutboxPublisher>();
+    builder.Services.AddHostedService<ProjectionConsumer>();
+}
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Set Jwt:Key (user-secrets or the Jwt__Key env var), at least 32 characters.");

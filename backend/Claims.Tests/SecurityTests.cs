@@ -23,7 +23,8 @@ public sealed class ApiFixture : IAsyncLifetime
         App = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b
             .UseSetting("ConnectionStrings:Claims", _db.GetConnectionString())
             .UseSetting("Jwt:Key", Key)
-            .UseSetting("DevLogin:Enabled", "true"));
+            .UseSetting("DevLogin:Enabled", "true")
+            .UseSetting("Kafka:BootstrapServers", ""));
     }
 
     public async Task DisposeAsync()

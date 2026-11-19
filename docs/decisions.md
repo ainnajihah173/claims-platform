@@ -53,6 +53,18 @@ Money is a `decimal` in the claim's currency. A claim never mixes currencies.
 
 ## Events (Kafka)
 
+**What goes over Kafka, and why.** Every claim action publishes one event to the `claims.events` topic. User actions stay synchronous REST (they need an answer straight away). Kafka carries the side effects that can lag a second behind: the exposure read model (`exposure_summary`) and claimant notifications. The write path doesn't know who listens, so a new reader (email, audit, a split-out reporting service) only needs a new consumer group, with no change to the claims code.
+
+**The outbox stops lost events.** Writing to the database and then to Kafka is two systems: a crash in between loses the event, or sends one for a change that rolled back. Instead, `AppDbContext.SaveChanges` turns each `Claim` domain event into an `outbox` row in the same transaction as the claim change. Both commit or neither does. `OutboxPublisher` (background service) reads unpublished rows every second, oldest first, sends each one, waits for the broker ack (`Acks = All`), then sets `PublishedAt`. If Kafka is down, rows wait and go out once it's back. `EnableIdempotence = true` stops the producer's own retries from writing a message twice.
+
+**At-least-once + an idempotent consumer.** A crash after the ack but before `PublishedAt` is saved sends a row again, so Kafka can deliver an event twice. `ProjectionConsumer` handles that. Auto-commit is off. For each message, one `SaveChanges` (one transaction) inserts the `eventId` into `processed_events` (primary key), updates `exposure_summary` and adds the claimant notification (InfoRequested, Settled, Rejected). An `eventId` it has seen before is skipped. The Kafka offset is committed only after the DB commit, so a crash replays the message instead of losing it, and the replay is skipped. Checked by marking all 27 outbox rows unpublished: all 27 went out again (54 messages on the topic), and events, notifications and exposure didn't change. Shortcut: a failed message is retried every 5 s with no limit and no dead-letter topic, so a message that always fails blocks its partition.
+
+**Key = claimId keeps order.** Kafka keeps order only within a partition. With the claim id as the key, all events of one claim go to the same partition, in the order they happened (submit before settle). Different claims spread over the 3 partitions.
+
+**Exposure maths** (per market + currency + type, so currencies never mix): Submitted → open count +1. ReserveSet → add `Reserve − OldReserve`. Settled / Rejected → open count −1 and subtract the claim's last `Reserve`, not the settled amount. Exposure is the reserve being held, so a claim with a 1,000 reserve settled for 800 removes 1,000.
+
+**No personal data in events.** The payload is `eventId`, `eventType`, `schemaVersion` (1), `occurredAt`, `claimId`, `actorId`, old/new status, market, type, currency, old/new reserve and settled amount. Only ids, statuses and amounts: no names, notes, questions, answers, policy number or description (a test checks this). The consumer finds the claimant through `claimId` in our own database. `schemaVersion` lets a consumer tell old messages from new ones if the payload ever changes.
+
 ## Dashboards
 
 ## Frontend

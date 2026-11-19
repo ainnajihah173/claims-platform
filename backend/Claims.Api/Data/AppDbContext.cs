@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Claims.Api.Domain;
+using Claims.Api.Events;
 using Microsoft.EntityFrameworkCore;
 
 namespace Claims.Api.Data;
@@ -11,6 +13,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
     public DbSet<ExposureSummary> ExposureSummary => Set<ExposureSummary>();
+
+    // Both overloads: the seed uses the sync one. The other SaveChanges overloads call these two.
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AddOutboxRows();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    {
+        AddOutboxRows();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
+    }
+
+    // Outbox: events become rows in the same SaveChanges (one transaction) as the claim change,
+    // so a claim is never saved without its events, and an event is never sent for a change that rolled back.
+    void AddOutboxRows()
+    {
+        foreach (var claim in ChangeTracker.Entries<Claim>().Select(e => e.Entity).ToList())
+        {
+            foreach (var e in claim.DomainEvents)
+            {
+                var id = Guid.CreateVersion7();
+                Outbox.Add(new OutboxMessage
+                {
+                    Id = id,
+                    EventType = e.Type.ToString(),
+                    OccurredAt = e.At,
+                    Payload = JsonSerializer.Serialize(ClaimEventMessage.From(id, e), ClaimEventMessage.Json),
+                });
+            }
+            claim.ClearDomainEvents();
+        }
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b)
     {
