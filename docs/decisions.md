@@ -39,6 +39,18 @@ Money is a `decimal` in the claim's currency. A claim never mixes currencies.
 
 ## Architecture
 
+**One service (modular monolith).** One ASP.NET Core API owns claims, notifications and dashboards, with one Postgres database. Folders (`Domain`, `Data`, `Controllers`) keep the parts apart. At this size, separate services would add network calls, deployments and data sync without any gain. Kafka (Step 5) already separates the read models from the write path, so a part can be split out later if it needs to scale on its own.
+
+**REST for user actions.** Every user action is one HTTP call that answers right away: `POST /api/claims`, `POST /api/claims/{id}/assign|request-info|provide-info|settle|reject`, `PUT /api/claims/{id}/reserve`. Actions are named verbs, not a generic `PATCH status`, so each one maps to exactly one `Claim` method and one rule set. Errors are problem details: 400 bad input, 404 unknown claim, 409 when the claim's state refuses the action or someone else changed it first.
+
+**The contract = OpenAPI generated from the code.** `Microsoft.AspNetCore.OpenApi` builds `/openapi/v1.json` from the controllers and DTOs, and Scalar (`/scalar`) shows it and lets you try each call. Code-first keeps the contract and the code in step with no extra work for one developer. In a bigger team I'd go contract-first: agree the OpenAPI file, then generate server stubs and the Angular client, so frontend and backend can work in parallel.
+
+**DTOs block mass-assignment.** Requests are small records with only the fields a caller may set (type, market, policy number, description, amount, text). Status, reserve, officer, claimant and version can't be sent at all. The acting user's id comes from the current user (today an `X-User-Id` header, the JWT `sub` from Step 4), never from the body. Responses are DTOs too, so entities never leave the API. Data annotations check shape at the edge: required non-blank text with a max length, enums must be defined names (`JsonStringEnumConverter` + `[EnumDataType]`), and amounts must fit `numeric(18,2)` (`[Money]`). The domain still checks the rules.
+
+**The `Version` check stops double pick-up.** `Claim.Version` goes up on every action and is an EF concurrency token. Every write loads the claim, calls a `Claim` method and saves. If two officers load the same Submitted claim and both pick it up, the second `UPDATE ... WHERE Version = @old` matches no row → `DbUpdateConcurrencyException` → 409, and the first officer keeps the claim. If the second request loads after the first has saved, `Assign` itself refuses (no longer Submitted) → 409. Why not `ExecuteUpdateAsync(... WHERE AssignedOfficerId IS NULL)`? It is also atomic, but it writes the row directly and skips the domain rules (self-pick-up guard), the history row and the domain event.
+
+**Persistence.** Enums are stored as text (reordering an enum never remaps saved rows). Money is `numeric(18,2)`. History is mapped through the `_history` field. `DomainEvents` isn't mapped (Step 5 turns events into outbox rows). Indexes: `(Status, AssignedOfficerId)` for the queues, `(ClaimantId)` for "my claims". The `notifications`, `outbox`, `processed_events` and `exposure_summary` tables exist now, so `EnsureCreated()` builds the whole schema once. Shortcut: `EnsureCreated()` + seed at startup, no migrations.
+
 ## Events (Kafka)
 
 ## Dashboards
