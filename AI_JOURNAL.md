@@ -16,7 +16,7 @@
 7. **Step 3:** The journal times the AI wrote were wrong, so I had them corrected.
 8. **Step 4:** I added Codex as a second reviewer. I applied Claude's three security fixes and left out Codex's Scalar "Authorize" button.
 9. **Redesign:** My idea. v1 worked but looked unfinished.
-10. **Timeline bug:** I spotted in the browser that the claim timeline was cut off at the bottom and had it fixed (`ae156b1`).
+10. **Timeline bug:** I spotted in the browser that the claim timeline was cut off at the bottom and had it fixed (`339d9e1`).
 
 ## Where I took the AI's suggestion as is
 - Step 3: EF conventions, every domain error as 409, no paging.
