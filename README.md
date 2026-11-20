@@ -97,7 +97,7 @@ One service (modular monolith), one database. Details in `docs/decisions.md`.
 - No test for duplicate delivery: `KafkaTests` proves outbox → Kafka → exposure + notification end to end (Testcontainers), but "duplicate skipped" was only checked by hand (all 27 events re-sent, totals unchanged).
 
 ## Time spent
-About 3¼ hours (first prompt 21:55, done about 01:15): the 3-hour core, then the extras and a frontend redesign, inside my own 4-hour budget (the brief's target is 2–3 h, hard cap 5 h). From the commit log:
+**Core (Steps 1–8) in about 2¾ hours** (21:55 → 00:42): submittable at that point, inside the brief's 2–3 h target. Then the extras, a frontend redesign and final docs, about 3¾ hours in total (done 01:42), inside my own 4-hour budget and the 5 h hard cap. Planning and tool setup happened before the timer. From the commit log:
 
 | Step | Done at | Min |
 |---|---|---|
@@ -111,5 +111,7 @@ About 3¼ hours (first prompt 21:55, done about 01:15): the 3-hour core, then th
 | README, fresh-clone test, journal | 00:42 | 8 |
 | Extras (submit form, dashboard screen, Dockerised API, Kafka test, rate limit) and the frontend redesign, side by side | 01:02 | ~20 |
 | README update, second fresh-clone test | 01:15 | ~10 |
+| Timeline fix (last card cut off) | 01:24 | ~9 |
+| Journal rework, final README | 01:42 | ~18 |
 
 **Why backend first.** The rules that matter (status flow, who may act, reserve and settle limits, ownership, no lost events) live in the backend and can be proven by tests. The UI is a thin layer over the API, and if it had run short the whole flow could still be shown in Scalar. Building the UI first would have meant building it against an API that didn't exist yet.
